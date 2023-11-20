@@ -68,15 +68,60 @@ vim.opt.rtp:prepend(lazypath)
 --    as they will be available in your neovim runtime.
 require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
-
   -- Git related plugins
   'tpope/vim-fugitive',
   'tpope/vim-rhubarb',
 
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
-
+  {
+    "folke/tokyonight.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {},
+  },
   -- NOTE: This is where your plugins related to LSP can be installed.
+  --
+  {
+    "simrat39/rust-tools.nvim",
+    lazy = true,
+    opts = function()
+      local ok, mason_registry = pcall(require, "mason-registry")
+      local adapter ---@type any
+      if ok then
+        -- rust tools configuration for debugging support
+        local codelldb = mason_registry.get_package("codelldb")
+        local extension_path = codelldb:get_install_path() .. "/extension/"
+        local codelldb_path = extension_path .. "adapter/codelldb"
+        local liblldb_path = ""
+        if vim.loop.os_uname().sysname:find("Windows") then
+          liblldb_path = extension_path .. "lldb\\bin\\liblldb.dll"
+        elseif vim.fn.has("mac") == 1 then
+          liblldb_path = extension_path .. "lldb/lib/liblldb.dylib"
+        else
+          liblldb_path = extension_path .. "lldb/lib/liblldb.so"
+        end
+        adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path)
+      end
+      return {
+        dap = {
+          adapter = adapter,
+        },
+        tools = {
+          on_initialized = function()
+            vim.cmd([[
+                  augroup RustLSP
+                    autocmd CursorHold                      *.rs silent! lua vim.lsp.buf.document_highlight()
+                    autocmd CursorMoved,InsertEnter         *.rs silent! lua vim.lsp.buf.clear_references()
+                    autocmd BufEnter,CursorHold,InsertLeave *.rs silent! lua vim.lsp.codelens.refresh()
+                  augroup END
+                ]])
+          end,
+        },
+      }
+    end,
+    config = function() end,
+  },
   --  The configuration is done below. Search for lspconfig to find it below.
   {
     -- LSP Configuration & Plugins
@@ -112,7 +157,7 @@ require('lazy').setup({
   },
 
   -- Useful plugin to show you pending keybinds.
-  { 'folke/which-key.nvim', opts = {} },
+  { 'folke/which-key.nvim',  opts = {} },
   {
     -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
@@ -345,7 +390,7 @@ local function live_grep_git_root()
   local git_root = find_git_root()
   if git_root then
     require('telescope.builtin').live_grep({
-      search_dirs = {git_root},
+      search_dirs = { git_root },
     })
   end
 end
@@ -378,7 +423,7 @@ vim.keymap.set('n', '<leader>sr', require('telescope.builtin').resume, { desc = 
 vim.defer_fn(function()
   require('nvim-treesitter.configs').setup {
     -- Add languages to be installed here that you want installed for treesitter
-    ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'javascript', 'typescript', 'vimdoc', 'vim', 'bash' },
+    ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'javascript', 'typescript', 'vimdoc', 'vim', 'bash', 'ruby', 'git_rebase', 'git_config', 'gitcommit', 'gitignore' },
 
     -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
     auto_install = false,
@@ -601,6 +646,22 @@ cmp.setup {
     { name = 'luasnip' },
   },
 }
+
+local rt = require("rust-tools")
+
+rt.setup({
+  server = {
+    on_attach = function(_, bufnr)
+      -- Hover actions
+      vim.keymap.set("n", "<C-space>", rt.hover_actions.hover_actions, { buffer = bufnr })
+      -- Code action groups
+      vim.keymap.set("n", "<Leader>a", rt.code_action_group.code_action_group, { buffer = bufnr })
+      vim.keymap.set("n", "<Leader>r", rt.runnables.runnables, { buffer = bufnr })
+    end,
+  },
+})
+
+vim.cmd[[colorscheme tokyonight]]
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
