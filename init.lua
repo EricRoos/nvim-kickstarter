@@ -661,7 +661,20 @@ rt.setup({
   },
 })
 
-vim.cmd[[colorscheme tokyonight]]
+vim.cmd [[colorscheme tokyonight]]
+vim.opt.signcolumn = "yes"
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "ruby",
+  callback = function()
+    print("foo")
+    vim.lsp.start {
+      name = "rubocop",
+      cmd = { "bundle", "exec", "rubocop", "--lsp" },
+    }
+  end,
+})
+vim.cmd [[autocmd BufWritePre <buffer> lua vim.lsp.buf.format()]]
+
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
